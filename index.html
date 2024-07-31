@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Map</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            box-sizing: border-box;
+        }
+        .weather {
+            text-align: center;
+            margin-bottom: 20px;
+            width: 90%;
+            max-width: 600px;
+        }
+        .srch, .btn {
+            border-radius: 5px;
+            padding: 10px;
+            font-size: 16px;
+            width: calc(100% - 24px); 
+            max-width: 300px;
+        }
+        .btn {
+            margin-top: 20px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        #map {
+            height: 50vh; 
+            width: 80%;
+            max-height: 500px; 
+        }
+        #weather-info {
+            margin-top: 20px;
+            width: 90%;
+            max-width: 600px;
+            text-align: left;
+        }
+
+        @media (max-width: 768px) {
+            .srch, .btn {
+                font-size: 14px;
+                padding: 8px;
+            }
+            #map {
+                height: 40vh;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .srch, .btn {
+                font-size: 12px;
+                padding: 6px;
+            }
+            #map {
+                height: 30vh;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+    <div class="weather">
+        <h1>Weather Map</h1>
+        <input type="text" id="city" class="srch" placeholder="Enter city name">
+        <button class="btn" onclick="getWeather()">Get Weather</button>
+        <div id="weather-info"></div>
+    </div>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const apiKey = '8915920a31d935b44524d7b73470daea'; 
+        let map;
+        let marker;
+
+        function initMap(lat = 14.0940, lon = 120.6890) {
+            map = L.map('map').setView([lat, lon], 12);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            map.on('click', async function(e) {
+                const { lat, lng } = e.latlng;
+                await showWeatherAt(lat, lng);
+            });
+        }
+
+        async function getWeather() {
+            const city = document.getElementById('city').value;
+            if (!city) {
+                alert('Please enter a city name');
+                return;
+            }
+
+            const geoUrl = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`;
+            try {
+                const geoResponse = await fetch(geoUrl);
+                if (!geoResponse.ok) {
+                    throw new Error(`City not found or API request failed with status ${geoResponse.status}`);
+                }
+                const geoData = await geoResponse.json();
+                const { lat, lon } = geoData.coord;
+
+                if (!map) {
+                    initMap(lat, lon);
+                } else {
+                    map.setView([lat, lon], 12);
+                }
+
+                if (marker) {
+                    marker.remove(); 
+                }
+
+                const weatherInfo = generateWeatherInfo(geoData);
+                marker = L.marker([lat, lon]).addTo(map)
+                    .bindPopup(weatherInfo)
+                    .openPopup();
+            } catch (error) {
+                document.getElementById('weather-info').innerHTML = `<p>${error.message}</p>`;
+            }
+        }
+
+        async function showWeatherAt(lat, lon) {
+            const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`;
+            try {
+                const weatherResponse = await fetch(weatherUrl);
+                if (!weatherResponse.ok) {
+                    throw new Error(`Failed to fetch weather data with status ${weatherResponse.status}`);
+                }
+                const weatherData = await weatherResponse.json();
+
+                const weatherInfo = generateWeatherInfo(weatherData);
+
+                if (marker) {
+                    marker.remove(); 
+                }
+
+                marker = L.marker([lat, lon]).addTo(map)
+                    .bindPopup(weatherInfo)
+                    .openPopup();
+            } catch (error) {
+                console.error('Error fetching weather data:', error);
+            }
+        }
+
+        function generateWeatherInfo(data) {
+            if (data.main && data.weather && data.wind) {
+                return `
+                    <div>
+                        <p><strong>Temperature:</strong> ${data.main.temp} °C</p>
+                        <p><strong>Weather:</strong> ${data.weather[0].description}</p>
+                        <p><strong>Humidity:</strong> ${data.main.humidity}%</p>
+                        <p><strong>Wind Speed:</strong> ${data.wind.speed} m/s</p>
+                    </div>
+                `;
+            } else {
+                return '<p>No weather data available</p>';
+            }
+        }
+
+        initMap();
+    </script>
+</body>
+</html>
